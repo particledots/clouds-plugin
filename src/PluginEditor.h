@@ -48,9 +48,10 @@ private:
     Knob position, size, pitch, density, texture;
     Knob dryWet, spread, feedback, reverb, outputLevel;
     Menu mode, quality;
+    juce::ToggleButton limiter { "LIMITER" };
     juce::ToggleButton freeze { "FREEZE" }, pitchMidi { "PITCH FOLLOWS MIDI" };
     juce::TextButton trigger { "TRIGGER" };
-    std::unique_ptr<ButtonAtt> freezeAtt, pitchMidiAtt;
+    std::unique_ptr<ButtonAtt> limiterAtt, freezeAtt, pitchMidiAtt;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CloudsEditor)
 };

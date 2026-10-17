@@ -4,6 +4,13 @@ A plugin wrapper around the Mutable Instruments **Clouds** DSP, taken from the o
 (`pichenettes/eurorack`, `clouds/dsp` + `clouds/resources.*`, plus `stmlib`). This is the stock Clouds firmware, so it can be compared
 against a real Clouds. Not a Mutable Instruments product. Don't contact Emilie Gillet or Mutable Instruments about it.
 
+## Limiter switch (version 0.3.0)
+A new **LIMITER** button (parameter `limiter`) sits at the end of the button row. **On (the default) is exactly the 0.2.0 sound**: the soft limiter after Output Level keeps loud sounds from going past 0 dBFS.
+**Off** removes it: the output is then the engine plus the Output Level gain and nothing else, so loud wet sounds can go past 0 dBFS (by tens of dB at high Output Level settings). Only two safety things
+remain: NaN becomes silence and values are held inside +/-16 so a runaway can never reach the host as infinity. Use Output Level, or a limiter after this plug-in, to keep it in range.
+Switching glides over about 10 ms, so there is no click. Presets and projects saved before 0.3.0 have no switch and load with the limiter **on**, i.e. they sound as they did in 0.2.0.
+Why it exists: the limiter is an instant curve (no attack, no release, no look-ahead), so on very loud sounds it acts like gentle distortion, which can be heard; the switch lets you turn that off and manage the level yourself.
+
 ## Output Level (version 0.2.0)
 **What was wrong.** Loading the plug-in made the sound quieter than before it was loaded. With Dry/Wet at 0 (nothing but the input) I measured the output at **-9.04 dB** relative to the input in
 all four modes (Granular, Pitch shifter / time stretch, Looping delay, Spectral madness), at 44.1, 48 and 96 kHz host rates and in all four qualities. (This is the stock Clouds code; an earlier note only had the
@@ -44,6 +51,7 @@ Headless DSP test (any OS): `cmake --build build --target engine_test && build/e
 | Pitch | semitones, ±48 (on the module: the pitch knob plus V/oct) |
 | Dry/Wet, Stereo Spread, Feedback, Reverb | the module's single **BLEND** knob has four roles (selected by its button); here each role has its own knob |
 | Output Level (version 0.2.0) | not on the module: makes up the firmware's output attenuation (-24 to +24 dB, default +9.03 dB), followed by a soft limiter; see the Output Level section |
+| Limiter (version 0.3.0) | not on the module: soft limiter after Output Level, on by default; off lets loud sounds go past 0 dBFS |
 | Freeze | the freeze button / gate |
 | Trigger (button) and MIDI note-on | the TRIG input: seeds a grain in Granular, restarts the loop / window in the other modes |
 | Pitch Follows MIDI | optional: the last MIDI note transposes Pitch (middle C = no change) |
@@ -69,6 +77,16 @@ Switching Mode (between Spectral and the others) or Quality clears the buffer an
 * The UI is a basic custom panel. It is functional rather than polished.
 
 ## Verified and not verified (Output Level, version 0.2.0)
+
+**Limiter switch (version 0.3.0) - measured and tested here (Linux, g++, October 2026), not listened to**
+* `tests/level_test.cpp`: 10355 checks, 0 failed (the 0.2.0 checks plus the switch): with the limiter on, a loud signal never passes 1.0; off, the same signal comes out at exactly the Output Level gain (within 0.0001) and
+  its peak is past 1.5; a quiet signal is identical on and off; NaN and infinity never get through when off; switching glides (no step above 2 % of the whole move) and settles exactly, and switching back on gives exactly the 0.2.0 value.
+* `tests/proc_level_test.cpp`: 25 checks, 0 failed, on the real processor class: the parameter exists and is on by default; a preset saved without it loads with the limiter on; with Output Level at +24 dB and a loud wet input
+  (four modes) the peak is 1.0000 with the limiter on and well past 1.0 with it off, so the switch really reaches the sound.
+* Mutation checks: `tests/mutation_check.sh` now breaks the stage in 7 ways (the earlier 4 plus switch ignored one way and the other, and the off-guard removed) and `tests/wiring_mutation_check.sh` in 6 ways (the earlier 3 plus
+  switch not read one way and the other, and default wrong); every broken copy was caught.
+* Not tested: how the switch sounds or looks in Logic, whether the button fits the panel as intended, Logic's handling of the new parameter in an existing project (the plug-in code is unchanged).
+
 **Built on GitHub Actions (macOS runner): every step passed, run 39057592273, commit `3c043ae`** (engine test, the four level steps, the universal arm64 + x86_64 AU and VST3 build, signing, packaging). I can see each step's pass / fail, not its log text. Not yet loaded in Logic and not listened to.
 **Measured and tested here (Linux, g++, October 2026), not listened to**
 * `tests/level_test.cpp`: 10,347 checks, 0 failed. Fully dry (Dry/Wet = 0) at the default Output Level, engine + stage output equals the input level within 0.1 dB in each of the four modes, at 44.1 / 48 / 96 kHz host, all four

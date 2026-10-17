@@ -146,6 +146,47 @@ int main()
         std::printf ("   largest peak in any mode: %.4f (limit 1.0000)\n", worst);
     }
 
+    {   // the limiter switch (version 0.3.0): parameter, default, old presets, and what it does in the real processor
+        CloudsAudioProcessor p;
+        auto* lp = p.apvts.getParameter ("limiter");
+        CHECK (lp != nullptr, "no limiter parameter");
+        if (lp != nullptr) CHECK (*p.apvts.getRawParameterValue ("limiter") > 0.5f, "limiter is not ON by default");
+
+        CloudsAudioProcessor src;
+        juce::MemoryBlock mb; src.getStateInformation (mb);
+        auto xml = juce::AudioProcessor::getXmlFromBinary (mb.getData(), (int) mb.getSize());
+        CHECK (xml != nullptr, "state could not be read back");
+        if (xml != nullptr)
+        {
+            int removed = 0;
+            for (int i = xml->getNumChildElements(); --i >= 0;)
+                if (auto* c = xml->getChildElement (i)) if (c->getStringAttribute ("id") == "limiter") { xml->removeChildElement (c, true); ++removed; }
+            CHECK (removed == 1, "expected one limiter entry in the saved state, found %d", removed);
+            juce::MemoryBlock old; juce::AudioProcessor::copyXmlToBinary (*xml, old);
+            CloudsAudioProcessor fresh; fresh.setStateInformation (old.getData(), (int) old.getSize());
+            CHECK (*fresh.apvts.getRawParameterValue ("limiter") > 0.5f, "a preset saved before the switch existed came up with the limiter OFF");
+        }
+
+        float peakOn = 0, peakOff = 0;
+        for (int pass = 0; pass < 2; ++pass)
+            for (int mode = 0; mode < 4; ++mode)
+            {
+                CloudsAudioProcessor q;
+                q.setPlayConfigDetails (2, 2, 48000.0, 480);
+                q.prepareToPlay (48000.0, 480);
+                setParam (q, "mode", (float) mode);
+                setParam (q, "dry_wet", 1.0f);
+                setParam (q, "output_level", 24.0f);
+                setParam (q, "limiter", pass == 0 ? 1.0f : 0.0f);
+                const auto r = run (q, 0.95, 4.0);
+                float& peak = pass == 0 ? peakOn : peakOff;
+                peak = std::max (peak, r.peak);
+            }
+        std::printf ("Limiter switch, loud wet input at +24 dB: on peak %.4f, off peak %.4f\n", peakOn, peakOff);
+        CHECK (peakOn <= 1.0f, "limiter on: peak %f exceeds 0 dBFS", peakOn);
+        CHECK (peakOff > 1.0f, "limiter off: peak %f never passed 0 dBFS (the switch did nothing)", peakOff);
+    }
+
     std::printf ("\nproc_level_test: %d checks, %d failed\n", checks, failures);
     return failures == 0 ? 0 : 1;
 }

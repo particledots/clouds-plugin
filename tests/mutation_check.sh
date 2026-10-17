@@ -16,6 +16,9 @@ MUTANTS=(
 "default level wrong (8.0 dB instead of 9.03 dB)|kDefaultLevelDb = 9.03f;|kDefaultLevelDb = 8.0f;"
 "dB converted with the wrong factor|std::pow (10.0f, db * 0.05f)|std::pow (10.0f, db * 0.1f)"
 "limiter removed (passes everything)|if (a <= kThreshold) return x;|return x;"
+"limiter switch ignored (always off)|limTarget = on ? 1.0f : 0.0f;|limTarget = 0.0f;"
+"limiter switch ignored (always on)|limTarget = on ? 1.0f : 0.0f;|limTarget = 1.0f;"
+"limiter off lets runaway values through|return std::clamp (x, -kOffGuard, kOffGuard);|return x;"
 )
 # first: the unbroken header must pass
 mkdir -p "$WORK/orig"

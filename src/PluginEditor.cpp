@@ -92,7 +92,10 @@ CloudsEditor::CloudsEditor (CloudsAudioProcessor& p) : AudioProcessorEditor (&p)
     addMenu (quality, "quality", "QUALITY", { "Stereo, 16-bit", "Mono, 16-bit", "Stereo, 8-bit (low-fi)", "Mono, 8-bit (low-fi)" });
 
     addAndMakeVisible (freeze);
+    addAndMakeVisible (limiter);
+    limiter.setTooltip ("On: a soft limiter after Output Level keeps loud sounds from going past 0 dBFS (it bends peaks, so you can hear it on very loud sounds). Off: no limiting; loud sounds can go past 0 dBFS, so use Output Level or a limiter after this plug-in.");
     addAndMakeVisible (pitchMidi);
+    limiterAtt   = std::make_unique<ButtonAtt> (proc.apvts, "limiter", limiter);
     freezeAtt    = std::make_unique<ButtonAtt> (proc.apvts, "freeze", freeze);
     pitchMidiAtt = std::make_unique<ButtonAtt> (proc.apvts, "pitch_midi", pitchMidi);
 
@@ -181,7 +184,8 @@ void CloudsEditor::resized()
     auto row = juce::Rectangle<int> (24, 384, W - 48, 36);
     freeze.setBounds (row.removeFromLeft (90)); row.removeFromLeft (8);
     trigger.setBounds (row.removeFromLeft (90).reduced (2)); row.removeFromLeft (8);
-    pitchMidi.setBounds (row.removeFromLeft (170));
+    pitchMidi.setBounds (row.removeFromLeft (170)); row.removeFromLeft (6);
+    limiter.setBounds (row.removeFromLeft (84));
 
     const int halfW = (W - 24 - 36) / 2;
     auto placeMenu = [&] (Menu& m, int x, int y)

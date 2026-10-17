@@ -83,6 +83,57 @@ static void testStageUnit()
         CHECK (maxStep < 0.01f * total, "gain step is not smooth: biggest sample-to-sample change %f of a total move %f", maxStep, total);
         CHECK (std::fabs (20.0f * std::log10 (a[47999] / 0.1f) + 24.0f) < 0.01f, "gain did not settle at -24 dB");
     }
+    // limiter switch (version 0.3.0)
+    {
+        // on: a loud signal never passes 1.0; off: the same signal comes through at exactly the Output Level gain, unshaped
+        const float g = OutputStage::dbToGain (9.03f);
+        OutputStage::Stage on; on.prepare (48000.0); on.setLevelDb (9.03f); on.setLimiterOn (true);
+        OutputStage::Stage off; off.prepare (48000.0); off.setLevelDb (9.03f); off.setLimiterOn (false);
+        std::vector<float> a (4800), b (4800);
+        for (int i = 0; i < 4800; ++i) a[i] = b[i] = 0.8f * (float) std::sin (2.0 * 3.14159265358979 * 220.0 * i / 48000.0);
+        float* ca[1] = { a.data() }; float* cb[1] = { b.data() };
+        on.process (ca, 1, 4800); off.process (cb, 1, 4800);
+        float peakOn = 0, peakOff = 0; double worstOff = 0;
+        for (int i = 480; i < 4800; ++i)
+        {
+            peakOn = std::max (peakOn, std::fabs (a[i])); peakOff = std::max (peakOff, std::fabs (b[i]));
+            const double x = 0.8 * std::sin (2.0 * 3.14159265358979 * 220.0 * i / 48000.0);
+            worstOff = std::max (worstOff, std::fabs ((double) b[i] - x * g));
+        }
+        std::printf ("   limiter switch: on peak %.4f, off peak %.4f (plain gain gives %.4f)\n", peakOn, peakOff, 0.8f * g);
+        CHECK (peakOn <= 1.0f, "limiter on: peak %f exceeds 1.0", peakOn);
+        CHECK (peakOff > 1.5f, "limiter off: peak %f was still limited", peakOff);
+        CHECK (worstOff < 1e-4, "limiter off: output differs from the plain gain by %g", worstOff);
+        // off: a quiet signal is exactly as with the limiter on
+        OutputStage::Stage q1; q1.prepare (48000.0); q1.setLevelDb (0.0f); q1.setLimiterOn (true);
+        OutputStage::Stage q2; q2.prepare (48000.0); q2.setLevelDb (0.0f); q2.setLimiterOn (false);
+        std::vector<float> c1 (480, 0.3f), c2 (480, 0.3f);
+        float* p1[1] = { c1.data() }; float* p2[1] = { c2.data() };
+        q1.process (p1, 1, 480); q2.process (p2, 1, 480);
+        CHECK (c1[479] == c2[479], "quiet signal differs between limiter on and off");
+        // NaN and infinity never reach the host when it is off
+        OutputStage::Stage n; n.prepare (48000.0); n.setLevelDb (0.0f); n.setLimiterOn (false);
+        std::vector<float> d { NAN, INFINITY, -INFINITY, 0.5f };
+        float* pd[1] = { d.data() }; n.process (pd, 1, 4);
+        CHECK (std::isfinite (d[0]) && std::isfinite (d[1]) && std::isfinite (d[2]) && std::fabs (d[1]) <= OutputStage::kOffGuard, "limiter off passed NaN / infinity");
+        // switching glides: no jump bigger than a small fraction of the step, and it settles on both sides
+        OutputStage::Stage sw; sw.prepare (48000.0); sw.setLevelDb (9.03f); sw.setLimiterOn (true);
+        std::vector<float> w (48000, 1.0f);
+        float* pw[1] = { w.data() };
+        sw.process (pw, 1, 2400);
+        const float onValue = w[2399];
+        sw.setLimiterOn (false);
+        std::fill (w.begin(), w.end(), 1.0f);
+        sw.process (pw, 1, 48000);
+        float maxStep = 0.0f;
+        for (int i = 1; i < 48000; ++i) maxStep = std::max (maxStep, std::fabs (w[i] - w[i - 1]));
+        CHECK (maxStep < 0.02f * (g - onValue), "switch is not smooth: biggest step %f of a total move %f", maxStep, g - onValue);
+        CHECK (std::fabs (w[47999] - g) < 1e-4f, "after switching off the output is %f, expected %f", w[47999], g);
+        sw.setLimiterOn (true);
+        std::fill (w.begin(), w.end(), 1.0f);
+        sw.process (pw, 1, 48000);
+        CHECK (w[47999] == onValue, "after switching back on the output is %f, expected exactly %f", w[47999], onValue);
+    }
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------
