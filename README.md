@@ -69,6 +69,7 @@ Switching Mode (between Spectral and the others) or Quality clears the buffer an
 * The UI is a basic custom panel. It is functional rather than polished.
 
 ## Verified and not verified (Output Level, version 0.2.0)
+**Built on GitHub Actions (macOS runner): every step passed, run 39057592273, commit `3c043ae`** (engine test, the four level steps, the universal arm64 + x86_64 AU and VST3 build, signing, packaging). I can see each step's pass / fail, not its log text. Not yet loaded in Logic and not listened to.
 **Measured and tested here (Linux, g++, October 2026), not listened to**
 * `tests/level_test.cpp`: 10,347 checks, 0 failed. Fully dry (Dry/Wet = 0) at the default Output Level, engine + stage output equals the input level within 0.1 dB in each of the four modes, at 44.1 / 48 / 96 kHz host, all four
   qualities, input -18 dBFS (and -6 dBFS at 48 kHz): 64 runs, worst deviation 0.063 dB. The limiter: identity up to its threshold, odd-symmetric, monotonic, slope 1 at the threshold,
