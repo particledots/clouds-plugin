@@ -78,6 +78,8 @@ Switching Mode (between Spectral and the others) or Quality clears the buffer an
 
 ## Verified and not verified (Output Level, version 0.2.0)
 
+**Limiter switch (version 0.3.0): built on GitHub Actions (macOS runner), every step passed, run 39075614416, commit `7796aca`** (all earlier tests, the extended level tests and both mutation checks, the universal arm64 + x86_64 AU and VST3 build, signing, packaging). I can see each step's pass / fail, not its log text. Not yet loaded in Logic and not listened to.
+
 **Limiter switch (version 0.3.0) - measured and tested here (Linux, g++, October 2026), not listened to**
 * `tests/level_test.cpp`: 10355 checks, 0 failed (the 0.2.0 checks plus the switch): with the limiter on, a loud signal never passes 1.0; off, the same signal comes out at exactly the Output Level gain (within 0.0001) and
   its peak is past 1.5; a quiet signal is identical on and off; NaN and infinity never get through when off; switching glides (no step above 2 % of the whole move) and settles exactly, and switching back on gives exactly the 0.2.0 value.
