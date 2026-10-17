@@ -46,7 +46,7 @@ private:
     CloudsLookAndFeel laf;
 
     Knob position, size, pitch, density, texture;
-    Knob dryWet, spread, feedback, reverb;
+    Knob dryWet, spread, feedback, reverb, outputLevel;
     Menu mode, quality;
     juce::ToggleButton freeze { "FREEZE" }, pitchMidi { "PITCH FOLLOWS MIDI" };
     juce::TextButton trigger { "TRIGGER" };

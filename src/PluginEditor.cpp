@@ -84,6 +84,9 @@ CloudsEditor::CloudsEditor (CloudsAudioProcessor& p) : AudioProcessorEditor (&p)
     addKnob (spread,   "spread",   "STEREO SPREAD");
     addKnob (feedback, "feedback", "FEEDBACK");
     addKnob (reverb,   "reverb",   "REVERB");
+    addKnob (outputLevel, "output_level", "OUTPUT LEVEL");
+    outputLevel.slider.setTooltip ("Makes up the firmware's output attenuation (about -9 dB with Dry/Wet at 0) so that a fully dry signal comes out at the input level. A soft limiter after it keeps loud sounds from clipping. Double-click to return to the default.");
+    outputLevel.slider.setDoubleClickReturnValue (true, (double) OutputStage::kDefaultLevelDb);
 
     addMenu (mode,    "mode",    "MODE",    { "Granular", "Pitch shifter / time stretch", "Looping delay", "Spectral madness" });
     addMenu (quality, "quality", "QUALITY", { "Stereo, 16-bit", "Mono, 16-bit", "Stereo, 8-bit (low-fi)", "Mono, 8-bit (low-fi)" });
@@ -169,11 +172,10 @@ void CloudsEditor::resized()
     for (int i = 0; i < 5; ++i)
         place (*row1[i], juce::Rectangle<int> (12 + i * col5, 62, col5, 142).reduced (10, 0));
 
-    // Row 2: the four blend roles
-    const int col4 = (W - 24) / 4;
-    Knob* row2[4] = { &dryWet, &spread, &feedback, &reverb };
-    for (int i = 0; i < 4; ++i)
-        place (*row2[i], juce::Rectangle<int> (12 + i * col4, 234, col4, 130).reduced (14, 0));
+    // Row 2: the four blend roles and the output level
+    Knob* row2[5] = { &dryWet, &spread, &feedback, &reverb, &outputLevel };
+    for (int i = 0; i < 5; ++i)
+        place (*row2[i], juce::Rectangle<int> (12 + i * col5, 234, col5, 130).reduced (10, 0));
 
     // Row 3: buttons and menus
     auto row = juce::Rectangle<int> (24, 384, W - 48, 36);

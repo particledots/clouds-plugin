@@ -4,6 +4,23 @@ A plugin wrapper around the Mutable Instruments **Clouds** DSP, taken from the o
 (`pichenettes/eurorack`, `clouds/dsp` + `clouds/resources.*`, plus `stmlib`). This is the stock Clouds firmware, so it can be compared
 against a real Clouds. Not a Mutable Instruments product. Don't contact Emilie Gillet or Mutable Instruments about it.
 
+## Output Level (version 0.2.0)
+**What was wrong.** Loading the plug-in made the sound quieter than before it was loaded. With Dry/Wet at 0 (nothing but the input) I measured the output at **-9.04 dB** relative to the input in
+all four modes (Granular, Pitch shifter / time stretch, Looping delay, Spectral madness), at 44.1, 48 and 96 kHz host rates and in all four qualities. (This is the stock Clouds code; an earlier note only had the
+same measurement from the SuperParasites family.) The cause is in the firmware code, not the wrapper: its dry/wet crossfade table starts at 0.707 (-3 dB) and its output conversion halves the signal
+(x 0.5, -6 dB) before the 16-bit output. The module's analogue output stage presumably makes that up; a plug-in has none.
+
+**The fix.** A new **OUTPUT LEVEL** knob (parameter `output_level`, -24 to +24 dB, default **+9.03 dB** = 20 x log10 (2 x sqrt 2)) sits after the engine, followed by a **soft limiter**.
+With the default, a fully dry signal comes out at the level it went in. The limiter passes everything below -0.9 dBFS unchanged and bends louder peaks towards 0 dBFS, which they
+never exceed; it is an instant curve (no delay, no look-ahead), a safety net against clipping rather than a mastering limiter. The gain glides (about 10 ms) so moving or automating the knob does not click.
+The engine and firmware code are untouched. The stage lives in `src/OutputStage.h` and is called from `processBlock`.
+
+**What it does not do.**
+* Loud dry signals are bent slightly by the firmware's own soft limit, before this stage: Looping delay, dry, input -6 dBFS: -0.06 dB; -1.9 dBFS: -0.16 dB; -0.4 dBFS: -0.22 dB.
+* The firmware's output is 16-bit and is 9 dB lower than the input before this gain is applied, so the gain also raises the firmware's own 16-bit rounding noise by 9 dB (it does not add any). I have not measured or listened for it in quiet passages.
+* **Presets and projects saved before 0.2.0 have no Output Level**, so they load at the +9.03 dB default and come out about 9 dB louder than they did. That is the fix, but if you
+  had turned the channel up to compensate, turn it back down.
+
 ## Easiest: let GitHub build it
 `.github/workflows/build.yml` builds the AU and VST3 on a macOS runner (universal arm64 + x86_64, macOS 11+).
 Download `Clouds-macOS` from the latest run's Artifacts (Actions tab). `INSTALL.txt` inside covers the install.
@@ -26,6 +43,7 @@ Headless DSP test (any OS): `cmake --build build --target engine_test && build/e
 | Position, Size, Density, Texture | the four main knobs |
 | Pitch | semitones, ±48 (on the module: the pitch knob plus V/oct) |
 | Dry/Wet, Stereo Spread, Feedback, Reverb | the module's single **BLEND** knob has four roles (selected by its button); here each role has its own knob |
+| Output Level (version 0.2.0) | not on the module: makes up the firmware's output attenuation (-24 to +24 dB, default +9.03 dB), followed by a soft limiter; see the Output Level section |
 | Freeze | the freeze button / gate |
 | Trigger (button) and MIDI note-on | the TRIG input: seeds a grain in Granular, restarts the loop / window in the other modes |
 | Pitch Follows MIDI | optional: the last MIDI note transposes Pitch (middle C = no change) |
@@ -49,6 +67,23 @@ Switching Mode (between Spectral and the others) or Quality clears the buffer an
 * **Not verified:** the macOS/AU build (until the GitHub run passes), loading in Logic on either Mac, MIDI trigger behaviour in a real host,
   and **how closely it sounds like a real Clouds**. Nobody has done an A/B against a module yet.
 * The UI is a basic custom panel. It is functional rather than polished.
+
+## Verified and not verified (Output Level, version 0.2.0)
+**Measured and tested here (Linux, g++, October 2026), not listened to**
+* `tests/level_test.cpp`: 10,347 checks, 0 failed. Fully dry (Dry/Wet = 0) at the default Output Level, engine + stage output equals the input level within 0.1 dB in each of the four modes, at 44.1 / 48 / 96 kHz host, all four
+  qualities, input -18 dBFS (and -6 dBFS at 48 kHz): 64 runs, worst deviation 0.063 dB. The limiter: identity up to its threshold, odd-symmetric, monotonic, slope 1 at the threshold,
+  never above 1.0 for any input including infinity, NaN becomes 0. The gain is exact to 0.001 dB at -24, -6, 0, +9.03 and +12 dB; a step from +9.03 to -24 dB glides with no jump. No clipping: with a 0.95-amplitude input, all modes
+  and qualities, Dry/Wet 0 / 0.5 / 1, Output Level at the default and at +24 dB (96 runs) no sample exceeds 1.0; without the limiter the engine's wet peaks at the default gain would reach about 2.5 x full scale.
+* `tests/proc_level_test.cpp`: 18 checks, 0 failed, on the real plug-in processor class (the same `PluginProcessor.cpp` as the AU / VST3, compiled against JUCE 8.0.6, run headless): the parameter exists and its default shows as "+9.03 dB";
+  all four modes come out within 0.010 dB of the input at the defaults; setting Output Level to -24 / -9.03 / 0 / +6 dB moves the output by exactly that much (within 0.02 dB; at 0 dB the output is -9.04 dB, the unfixed level);
+  loud input at +24 dB in every mode stays at or below 1.0; a preset saved without an Output Level loads at +9.03 dB (and keeps its other settings), also into an instance whose knob had been turned to 0 dB.
+* **Mutation checks (the tests fail when the level is broken).** `tests/mutation_check.sh` breaks `OutputStage.h` in four ways (gain removed, default 8.0 dB instead of 9.03, wrong dB-to-gain factor, limiter removed) and the level test failed for every one
+  (13, 9, 13 and 4,020 failed checks), while passing on the unbroken code. `tests/wiring_mutation_check.sh` breaks `processBlock` in three ways (stage not called, level parameter not read, parameter default 0 dB) and the whole-plug-in test failed each
+  time (7, 7 and 6 failed checks); the source is restored afterwards. Both are workflow steps.
+* The existing suite still passes with the new CMake targets (`engine_test`); the engine and firmware code are not touched.
+* The editor source (the fifth knob in the second row) compiles against JUCE 8.0.6 with the rest of the plug-in. **How it looks is not checked: I have not seen the editor.**
+
+**Not verified:** how it sounds; that the level you read on Logic's meters / faders now matches; the 16-bit noise floor at +9 dB in quiet passages; the knob row in Logic; behaviour when automated; any match with a real Clouds' output level.
 
 ## Where the source came from, and two fixes
 

@@ -2,6 +2,7 @@
 #include <atomic>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "CloudsEngine.h"
+#include "OutputStage.h"
 
 class CloudsAudioProcessor : public juce::AudioProcessor
 {
@@ -41,6 +42,7 @@ private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
 
     CloudsEngine engine;
+    OutputStage::Stage outputStage;
     std::vector<float> scratchL, scratchR, inL, inR;
     std::atomic<bool> triggerRequested { false };
     int lastMidiNote = 60;

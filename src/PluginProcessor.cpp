@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "OutputStage.h"
 
 using APF = juce::AudioParameterFloat;
 using APB = juce::AudioParameterBool;
@@ -24,6 +25,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout CloudsAudioProcessor::create
     p.push_back (unit ("spread",   "Stereo Spread", 0.5f));
     p.push_back (unit ("feedback", "Feedback", 0.0f));
     p.push_back (unit ("reverb",   "Reverb",   0.0f));
+    // Output Level: makes up the firmware's output attenuation (-9 dB with Dry/Wet at 0) so that a fully dry signal comes out at the input level.
+    // A soft limiter after it keeps loud wet sounds from clipping.
+    p.push_back (std::make_unique<APF> (juce::ParameterID { "output_level", 1 }, "Output Level",
+                 juce::NormalisableRange<float> (OutputStage::kMinLevelDb, OutputStage::kMaxLevelDb, 0.01f), OutputStage::kDefaultLevelDb,
+                 juce::AudioParameterFloatAttributes().withLabel ("dB")
+                     .withStringFromValueFunction ([] (float v, int) { return (v >= 0.0f ? "+" : "") + juce::String (v, 2) + " dB"; })
+                     .withValueFromStringFunction ([] (const juce::String& s) { return s.retainCharacters ("-+.0123456789").getFloatValue(); })));
     p.push_back (std::make_unique<APB> (juce::ParameterID { "freeze", 1 }, "Freeze", false));
     p.push_back (std::make_unique<APB> (juce::ParameterID { "pitch_midi", 1 }, "Pitch Follows MIDI", false));
     p.push_back (std::make_unique<APC> (juce::ParameterID { "mode", 1 }, "Mode",
@@ -50,6 +58,7 @@ bool CloudsAudioProcessor::isBusesLayoutSupported (const BusesLayout& l) const
 void CloudsAudioProcessor::prepareToPlay (double sr, int maxBlock)
 {
     engine.prepare (sr);
+    outputStage.prepare (sr);
     scratchL.assign ((size_t) maxBlock, 0.f);
     scratchR.assign ((size_t) maxBlock, 0.f);
     inL.assign ((size_t) maxBlock, 0.f);
@@ -98,6 +107,10 @@ void CloudsAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     engine.process (inL.data(), inR.data(), scratchL.data(), scratchR.data(), n, prm);
     buffer.copyFrom (0, 0, scratchL.data(), n);
     if (chans > 1) buffer.copyFrom (1, 0, scratchR.data(), n);
+
+    // Output Level and the soft limiter come last, after the engine, so the engine's output is untouched.
+    outputStage.setLevelDb (v ("output_level"));
+    outputStage.process (buffer.getArrayOfWritePointers(), juce::jmin (chans, 2), n);
 }
 
 juce::AudioProcessorEditor* CloudsAudioProcessor::createEditor()

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(CloudsPlugin VERSION 0.1.0)
+project(CloudsPlugin VERSION 0.2.0)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -69,3 +69,16 @@ target_link_libraries(Clouds PRIVATE
 # --- Headless test of the DSP wrapper:  cmake --build build --target engine_test && build/engine_test ---
 add_executable(engine_test EXCLUDE_FROM_ALL src/engine_test.cpp)
 target_link_libraries(engine_test PRIVATE clouds_core)
+
+# --- Level tests of the output stage (Output Level + soft limiter) ---
+#   cmake --build build --target level_test && build/level_test            (stage and engine, no JUCE)
+#   cmake --build build --target proc_level_test && build/proc_level_test  (the real plug-in processor class, headless)
+add_executable(level_test EXCLUDE_FROM_ALL tests/level_test.cpp)
+target_link_libraries(level_test PRIVATE clouds_core)
+
+add_executable(proc_level_test EXCLUDE_FROM_ALL tests/proc_level_test.cpp src/PluginProcessor.cpp src/PluginEditor.cpp)
+target_compile_definitions(proc_level_test PRIVATE JucePlugin_Name="Unofficial Clouds" JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
+target_link_libraries(proc_level_test PRIVATE
+  clouds_core
+  juce::juce_audio_processors
+  juce::juce_recommended_config_flags)
