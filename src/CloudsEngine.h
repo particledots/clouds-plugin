@@ -18,7 +18,9 @@ public:
     {
         // Same meaning as the module's knobs (all 0..1 unless noted).
         float position = 0.5f, size = 0.5f, density = 0.7f, texture = 0.5f;
-        float pitchSemitones = 0.0f;                         // -48..48
+        float pitchSemitones = 0.0f;                         // the PITCH knob, -48..48
+        float pitchOffsetSemitones = 0.0f;                   // added after Pitch Snap, like the V/OCT input (used for MIDI follow)
+        int pitchSnap = 0;                                   // our addition: 0 Off, 1 Steps (octaves and fifths), 2 Semitones
         // The module's four BLEND roles, each as its own value:
         float dryWet = 0.5f, stereoSpread = 0.5f, feedback = 0.0f, reverb = 0.0f;
         bool freeze = false;
@@ -38,6 +40,13 @@ public:
 
     int latencyInHostSamples() const;
     double processorRate() const { return procRate; }
+
+    // Our addition: Pitch Snap applied to the PITCH knob's semitone value (before the MIDI note is added).
+    //   0 Off       - unchanged
+    //   1 Steps     - octaves and fifths over the knob's +-48 range: 0, 7, 12, 19, 24, 31, 36, 43, 48 (and the negatives)
+    //   2 Semitones - whole semitones
+    enum PitchSnap { SnapOff = 0, SnapSteps = 1, SnapSemitones = 2 };
+    static float snapPitch (float semitones, int mode);
 
 private:
     struct Frame { float l, r; };

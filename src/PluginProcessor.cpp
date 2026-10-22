@@ -36,6 +36,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout CloudsAudioProcessor::create
     p.push_back (std::make_unique<APB> (juce::ParameterID { "limiter", 1 }, "Limiter", OutputStage::kDefaultLimiterOn));
     p.push_back (std::make_unique<APB> (juce::ParameterID { "freeze", 1 }, "Freeze", false));
     p.push_back (std::make_unique<APB> (juce::ParameterID { "pitch_midi", 1 }, "Pitch Follows MIDI", false));
+    // Pitch Snap (our addition): what the PITCH knob settles on. Steps = octaves and fifths, Semitones = whole semitones.
+    p.push_back (std::make_unique<APC> (juce::ParameterID { "pitch_snap", 2 }, "Pitch Snap",
+                 juce::StringArray { "Off", "Steps", "Semitones" }, 0));
     p.push_back (std::make_unique<APC> (juce::ParameterID { "mode", 1 }, "Mode",
                  juce::StringArray { "Granular", "Pitch shifter / time stretch", "Looping delay", "Spectral madness" }, 0));
     p.push_back (std::make_unique<APC> (juce::ParameterID { "quality", 1 }, "Quality",
@@ -95,7 +98,9 @@ void CloudsAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
 
     CloudsEngine::Params prm;
     prm.position = v ("position"); prm.size = v ("size"); prm.density = v ("density"); prm.texture = v ("texture");
-    prm.pitchSemitones = v ("pitch") + (v ("pitch_midi") > 0.5f ? (float) (lastMidiNote - 60) : 0.0f);
+    prm.pitchSemitones = v ("pitch");
+    prm.pitchOffsetSemitones = v ("pitch_midi") > 0.5f ? (float) (lastMidiNote - 60) : 0.0f;
+    prm.pitchSnap = (int) v ("pitch_snap");
     prm.dryWet = v ("dry_wet"); prm.stereoSpread = v ("spread"); prm.feedback = v ("feedback"); prm.reverb = v ("reverb");
     prm.freeze = v ("freeze") > 0.5f;
     prm.mode = (int) v ("mode");

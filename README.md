@@ -4,6 +4,18 @@ A plugin wrapper around the Mutable Instruments **Clouds** DSP, taken from the o
 (`pichenettes/eurorack`, `clouds/dsp` + `clouds/resources.*`, plus `stmlib`). This is the stock Clouds firmware, so it can be compared
 against a real Clouds. Not a Mutable Instruments product. Don't contact Emilie Gillet or Mutable Instruments about it.
 
+## Pitch Snap (version 0.4.0)
+A new **PITCH SNAP** menu (parameter `pitch_snap`, third menu on the bottom row) settles the PITCH knob on musical notes, as in the Unofficial Spotykach and Unofficial Beads plug-ins:
+* **Off (the default)** is exactly the 0.3.0 sound.
+* **Steps** snaps to octaves and fifths across the knob's whole +-48 range: 0, 7, 12, 19, 24, 31, 36, 43, 48 semitones, up and down.
+* **Semitones** snaps to whole semitones.
+With Steps or Semitones the PITCH readout shows the note that actually plays (a whole number such as -12 or +7), not the raw knob position. The snap is applied to the knob's value before the MIDI note
+(Pitch Follows MIDI) is added, and with a snap on the pitch glides over a few milliseconds so a step is not a click. Projects saved before 0.4.0 have no such parameter and load with Pitch Snap **Off**.
+There is no scale menu here: the Clouds engine has no random pitch for a scale to snap.
+**Verified (Linux, headless; `tests/pitch_snap_test.cpp`, run in the workflow):** the snapping function is exact over the whole range; in the Pitch shifter, a sine's output pitch follows the snapped value
+(within 0.25 semitone in 7 knob/snap combinations); every mode stays finite and bounded with each setting and a sweeping knob.
+**Not verified:** how it looks and feels in Logic (the menu position, the readout), and by ear in each mode.
+
 ## Limiter switch (version 0.3.0)
 A new **LIMITER** button (parameter `limiter`) sits at the end of the button row. **On (the default) is exactly the 0.2.0 sound**: the soft limiter after Output Level keeps loud sounds from going past 0 dBFS.
 **Off** removes it: the output is then the engine plus the Output Level gain and nothing else, so loud wet sounds can go past 0 dBFS (by tens of dB at high Output Level settings). Only two safety things

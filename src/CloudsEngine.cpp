@@ -59,6 +59,18 @@ int CloudsEngine::latencyInHostSamples() const
     return (int) std::ceil (procFrames * hostRate / procRate);
 }
 
+float CloudsEngine::snapPitch (float semitones, int mode)
+{
+    if (mode == SnapSemitones) return std::round (semitones);
+    if (mode != SnapSteps) return semitones;
+    static const float kSteps[] = { 0.f, 7.f, 12.f, 19.f, 24.f, 31.f, 36.f, 43.f, 48.f };   // mirrored below zero
+    const float a = std::fabs (semitones);
+    float best = kSteps[0];
+    for (float d : kSteps)
+        if (std::fabs (a - d) < std::fabs (a - best)) best = d;
+    return semitones < 0.f ? -best : best;
+}
+
 void CloudsEngine::runBlocks (const Params& p)
 {
     using namespace clouds;
@@ -82,7 +94,7 @@ void CloudsEngine::runBlocks (const Params& p)
         // Per-block knob smoothing with the firmware's own coefficients (cv_scaler.cc).
         if (! smoothInit)
         {
-            sPosition = p.position; sSize = p.size; sDensity = p.density; sTexture = p.texture; sPitch = p.pitchSemitones;
+            sPosition = p.position; sSize = p.size; sDensity = p.density; sTexture = p.texture; sPitch = snapPitch (p.pitchSemitones, p.pitchSnap) + p.pitchOffsetSemitones;
             sDryWet = p.dryWet; sSpread = p.stereoSpread; sFeedback = p.feedback; sReverb = p.reverb;
             smoothInit = true;
         }
@@ -90,7 +102,9 @@ void CloudsEngine::runBlocks (const Params& p)
         onePole (sDensity,  p.density,  0.01f);
         onePole (sSize,     p.size,     0.01f);
         onePole (sTexture,  p.texture,  0.01f);
-        onePole (sPitch,    p.pitchSemitones, 0.01f);
+        // Pitch Snap: the knob's note is snapped, then the MIDI offset is added. With a snap on, the pitch glides over a few ms
+        // (so a step is not a click); Off keeps the module's slow knob smoothing exactly as it was.
+        onePole (sPitch, snapPitch (p.pitchSemitones, p.pitchSnap) + p.pitchOffsetSemitones, p.pitchSnap == SnapOff ? 0.01f : 0.2f);
         onePole (sDryWet,   p.dryWet,   0.05f);
         onePole (sSpread,   p.stereoSpread, 0.05f);
         onePole (sFeedback, p.feedback, 0.05f);

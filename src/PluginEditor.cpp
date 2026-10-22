@@ -90,6 +90,19 @@ CloudsEditor::CloudsEditor (CloudsAudioProcessor& p) : AudioProcessorEditor (&p)
 
     addMenu (mode,    "mode",    "MODE",    { "Granular", "Pitch shifter / time stretch", "Looping delay", "Spectral madness" });
     addMenu (quality, "quality", "QUALITY", { "Stereo, 16-bit", "Mono, 16-bit", "Stereo, 8-bit (low-fi)", "Mono, 8-bit (low-fi)" });
+    addMenu (pitchSnap, "pitch_snap", "PITCH SNAP", { "Off", "Steps", "Semitones" });
+    pitchSnap.box.setTooltip ("What the PITCH knob settles on. Steps = octaves and fifths (0, 7, 12, 19, 24 ... up to 48, both directions); Semitones = whole semitones. The readout shows the note that plays.");
+    // The Pitch readout shows the note that actually plays: with Pitch Snap on, the snapped whole-semitone value.
+    pitch.slider.textFromValueFunction = [this] (double v)
+    {
+        const int mode = (int) proc.apvts.getRawParameterValue ("pitch_snap")->load();
+        if (mode == CloudsEngine::SnapOff) return juce::String (v, 2);
+        const int n = (int) std::lround (CloudsEngine::snapPitch ((float) v, mode));
+        return n > 0 ? "+" + juce::String (n) : juce::String (n);
+    };
+    snapReadoutAtt = std::make_unique<juce::ParameterAttachment> (*proc.apvts.getParameter ("pitch_snap"),
+                                                                  [this] (float) { pitch.slider.updateText(); });
+    snapReadoutAtt->sendInitialUpdate();
 
     addAndMakeVisible (freeze);
     addAndMakeVisible (limiter);
@@ -187,7 +200,7 @@ void CloudsEditor::resized()
     pitchMidi.setBounds (row.removeFromLeft (170)); row.removeFromLeft (6);
     limiter.setBounds (row.removeFromLeft (84));
 
-    const int halfW = (W - 24 - 36) / 2;
+    const int halfW = (W - 24 - 36) / 3;   // three menus in a row
     auto placeMenu = [&] (Menu& m, int x, int y)
     {
         m.label.setBounds (x, y, halfW, 16);
@@ -195,4 +208,5 @@ void CloudsEditor::resized()
     };
     placeMenu (mode,    24, 430);
     placeMenu (quality, 24 + halfW + 12, 430);
+    placeMenu (pitchSnap, 24 + 2 * (halfW + 12), 430);
 }

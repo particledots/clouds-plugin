@@ -36,6 +36,11 @@ jobs:
       - name: Wiring mutation check (the whole plug-in test must FAIL when the stage is not called, the level is not read, or the default is wrong)
         run: bash tests/wiring_mutation_check.sh build
 
+      - name: Pitch Snap tests (snapping function, engine output pitch measured on a sine, all modes)
+        run: |
+          cmake --build build --target pitch_snap_test -j4
+          ./build/pitch_snap_test
+
       - name: Build AU + VST3
         run: cmake --build build --target Clouds_AU Clouds_VST3 -j4
 
