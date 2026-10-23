@@ -41,6 +41,11 @@ jobs:
           cmake --build build --target pitch_snap_test -j4
           ./build/pitch_snap_test
 
+      - name: Waveform display tests (picture placement, Freeze, hidden mode, sound identical with the display open, marker against a gliding test tone)
+        run: |
+          cmake --build build --target waveform_test -j4
+          ./build/waveform_test
+
       - name: Build AU + VST3
         run: cmake --build build --target Clouds_AU Clouds_VST3 -j4
 

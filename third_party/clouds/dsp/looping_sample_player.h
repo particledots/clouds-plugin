@@ -38,6 +38,7 @@
 #include "clouds/dsp/audio_buffer.h"
 #include "clouds/dsp/frame.h"
 #include "clouds/dsp/parameters.h"
+#include "clouds/dsp/position_view.h"
 
 #include "clouds/resources.h"
 
@@ -66,6 +67,37 @@ class LoopingSamplePlayer {
   
   inline bool synchronized() const { return synchronized_; }
   
+  // Unofficial Clouds, waveform display: where Position points on the tape, worked out as Play() does it below (read-only; nothing
+  // in the playback uses this). Shows the setting, not the smoothed delay that is still gliding to it.
+  void Describe(const Parameters& parameters, int32_t buffer_size, PositionView* v) const {
+    const int32_t max_delay = buffer_size - kCrossfadeDuration;
+    v->has_marker = true;
+    if (!parameters.freeze) {
+      float target_delay = parameters.position * max_delay;
+      if (synchronized_) {
+        target_delay = tap_delay_;
+      }
+      v->kind = VIEW_DELAY;
+      v->marker_back = target_delay;
+      return;
+    }
+    float loop_point = parameters.position * max_delay * 15.0f / 16.0f;
+    loop_point += kCrossfadeDuration;
+    float d = parameters.size;
+    float loop_duration = (0.01f + 0.99f * d * d * d) * max_delay;
+    if (synchronized_) {
+      loop_duration = tap_delay_;
+    }
+    if (loop_point + loop_duration >= max_delay) {
+      loop_point = max_delay - loop_duration;
+    }
+    v->kind = VIEW_LOOP;
+    v->marker_back = loop_point;
+    v->has_band = true;
+    v->band_far = loop_point + loop_duration;
+    v->band_len = loop_duration;
+  }
+
   template<Resolution resolution>
   void Play(
       const AudioBuffer<resolution>* buffer,

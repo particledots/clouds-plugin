@@ -40,6 +40,7 @@
 #include "clouds/dsp/granular_processor.h"
 #include "clouds/dsp/granular_sample_player.h"
 #include "clouds/dsp/looping_sample_player.h"
+#include "clouds/dsp/position_view.h"
 #include "clouds/dsp/pvoc/phase_vocoder.h"
 #include "clouds/dsp/sample_rate_converter.h"
 #include "clouds/dsp/wsola_sample_player.h"
@@ -148,6 +149,18 @@ class GranularProcessor {
   bool LoadPersistentData(const uint32_t* data);
   void PreparePersistentData();
 
+  // ---- Unofficial Clouds, waveform display ------------------------------------------------------------------------------
+  // Read-only calls for the plug-in's picture of the recording buffer. None of them changes anything.
+  // Counts how many times the sample memory has been rebuilt (mode change into/out of Spectral, quality change, first Prepare).
+  inline int32_t buffers_generation() const { return buffers_generation_; }
+  // The sample memory of channel ch (0 or 1): where it is and how many bytes. Returns false if it isn't holding audio.
+  bool sample_region(int32_t ch, void** data, size_t* bytes) const;
+  // The stored sample rate: 16 kHz in low-fi, otherwise 32 kHz.
+  inline float stored_sample_rate() const { return 32000.0f / (low_fidelity_ ? kDownsamplingFactor : 1); }
+  // Where the POSITION (and SIZE) settings point on the recording buffer in the current mode, in frames back from the write head
+  // (see position_view.h). Call between blocks, from the audio thread.
+  void GetPositionView(PositionView* v) const;
+
  private:
   inline int32_t resolution() const {
     return low_fidelity_ ? 8 : 16;
@@ -207,6 +220,12 @@ class GranularProcessor {
   
   PersistentState persistent_state_;
   
+  // Waveform display (read-only bookkeeping).
+  void* region_ptr_[2];
+  size_t region_bytes_[2];
+  bool samples_valid_;
+  int32_t buffers_generation_;
+
   DISALLOW_COPY_AND_ASSIGN(GranularProcessor);
 };
 

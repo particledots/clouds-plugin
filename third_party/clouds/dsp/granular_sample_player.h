@@ -41,6 +41,7 @@
 #include "clouds/dsp/frame.h"
 #include "clouds/dsp/grain.h"
 #include "clouds/dsp/parameters.h"
+#include "clouds/dsp/position_view.h"
 
 #include "clouds/resources.h"
 
@@ -163,6 +164,29 @@ class GranularSamplePlayer {
     }
   }
   
+  // Unofficial SuperParasites Layers, waveform display: where Position points on the tape, worked out exactly as ScheduleGrain()
+  // does it below (read-only; nothing in the playback uses this).
+  void Describe(const Parameters& parameters, int32_t buffer_size, PositionView* v) const {
+    float grain_size = Interpolate(lut_grain_size, parameters.size, 256.0f);
+    const float pitch_ratio = SemitonesToRatio(parameters.pitch);
+    const float inv_pitch_ratio = SemitonesToRatio(-parameters.pitch);
+    if (pitch_ratio > 1.0f) {
+      grain_size = std::min(grain_size, buffer_size * 0.25f * inv_pitch_ratio);
+    }
+    const float eaten_by_play_head = grain_size * pitch_ratio;
+    const float eaten_by_recording_head = grain_size;
+    float available = static_cast<float>(buffer_size);
+    available -= eaten_by_play_head;
+    available -= eaten_by_recording_head;
+    if (available < 0.0f) available = 0.0f;
+    v->kind = VIEW_GRANULAR;
+    v->has_marker = true;
+    v->marker_back = parameters.position * available;
+    v->has_band = true;
+    v->band_far = v->marker_back + eaten_by_play_head;
+    v->band_len = eaten_by_play_head;
+  }
+
  private:
   int32_t FillAvailableGrainsList() {
     int32_t num_available_grains = 0;

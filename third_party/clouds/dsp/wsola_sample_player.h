@@ -43,6 +43,7 @@
 #include "clouds/dsp/frame.h"
 #include "clouds/dsp/window.h"
 #include "clouds/dsp/parameters.h"
+#include "clouds/dsp/position_view.h"
 #include "clouds/resources.h"
 
 namespace clouds {
@@ -212,6 +213,26 @@ class WSOLASamplePlayer {
         increment);
     correlator_loaded_ = true;
   }
+  // Unofficial Clouds, waveform display: where Position points on the tape, worked out as ScheduleAlignedWindow() does it below
+  // (read-only; nothing in the playback uses this). The window is searched for around this point, so the sound comes from near
+  // it rather than exactly at it.
+  void Describe(int32_t buffer_size, PositionView* v) const {
+    const float inv_pitch_ratio = SemitonesToRatio(-smoothed_pitch_);
+    int32_t limit = buffer_size;
+    limit -= static_cast<int32_t>(2.0f * window_size_ * inv_pitch_ratio);
+    limit -= 2 * window_size_;
+    if (limit < 0) {
+      limit = 0;
+    }
+    const float position = limit * position_;
+    v->kind = VIEW_STRETCH;
+    v->has_marker = true;
+    v->marker_back = position;
+    v->has_band = true;
+    v->band_far = position + window_size_;
+    v->band_len = static_cast<float>(window_size_);
+  }
+
  private:
   template<Resolution resolution>
   void ScheduleAlignedWindow(

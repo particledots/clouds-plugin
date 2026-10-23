@@ -4,6 +4,25 @@ A plugin wrapper around the Mutable Instruments **Clouds** DSP, taken from the o
 (`pichenettes/eurorack`, `clouds/dsp` + `clouds/resources.*`, plus `stmlib`). This is the stock Clouds firmware, so it can be compared
 against a real Clouds. Not a Mutable Instruments product. Don't contact Emilie Gillet or Mutable Instruments about it.
 
+## Waveform display with a Position marker (version 0.5.0)
+A new panel at the top of the window draws the **recording buffer** (loudest peak per column, oldest on the left, "now" on the right) and a **marker at the Position setting**:
+
+| Mode | Marker | Shaded band |
+|---|---|---|
+| Granular | where the grains start reading, as time back from now | the stretch one grain plays |
+| Pitch shifter / time stretch | how far back the window is read from | the window (it follows Size) |
+| Looping delay, running | the delay time you set (Size is not used; the real delay glides slowly towards it, as on the module) | none |
+| Looping delay, Frozen | where the loop begins | the loop (Size is its length) |
+| Spectral madness | greyed out: this mode has no recording buffer | |
+
+With **Freeze** the picture holds still. The display only reads the sound memory on the audio thread, a little at a time, and only while a plug-in window is open;
+the sound is bit-for-bit the same with the window open or closed (tested).
+
+**Verified (Linux, headless; `tests/waveform_test.cpp`, run in the workflow):** where a burst of sound lands in the picture (several formats and qualities);
+Freeze; the hidden Spectral mode; output identical with the display open or closed; a reader thread hammering the picture while audio runs; and, with a gliding test tone as a time stamp,
+that the sound really comes from the marker (Pitch shifter, Looping delay: within a few ms) or from inside the band (Granular: grains have a lopsided window, so the heard centre sits inside the band).
+**Not verified:** how the panel looks and behaves in Logic (it is drawn by code that CI compiles but nobody has seen), and the AU on the Intel Mac.
+
 ## Pitch Snap (version 0.4.0)
 A new **PITCH SNAP** menu (parameter `pitch_snap`, third menu on the bottom row) settles the PITCH knob on musical notes, as in the Unofficial Spotykach and Unofficial Beads plug-ins:
 * **Off (the default)** is exactly the 0.3.0 sound.

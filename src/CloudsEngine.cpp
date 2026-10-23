@@ -1,9 +1,11 @@
 #include "CloudsEngine.h"
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <new>
 #include "clouds/dsp/granular_processor.h"
+#include "clouds/dsp/mu_law.h"
 
 namespace
 {
@@ -133,6 +135,7 @@ void CloudsEngine::runBlocks (const Params& p)
 
         for (int k = 0; k < kPrepareCallsPerBlock; ++k)
             proc->Prepare();
+        updateWaveform();
 
         for (size_t i = 0; i < B; ++i)
         {
@@ -145,6 +148,79 @@ void CloudsEngine::runBlocks (const Params& p)
         inQueue.erase (inQueue.begin(), inQueue.begin() + (long) inQueueHead);
         inQueueHead = 0;
     }
+}
+
+// Waveform display: once per 1 ms block, only while an editor has the display open. Publishes where the head, Position and Size
+// are, and re-reads a few segments of the recording memory for their peaks (the whole buffer is swept every 500 ms or so, a
+// 1 s buffer every 16 ms). It only reads the sample memory the processor has just finished with, on the audio thread itself,
+// so it cannot disturb the sound and nothing in it can wait on the editor.
+void CloudsEngine::updateWaveform()
+{
+    if (viewers.load (std::memory_order_relaxed) <= 0) return;
+
+    clouds::PositionView v;
+    proc->GetPositionView (&v);
+
+    WaveformPicture::Meta m;
+    m.hidden = v.hidden; m.kind = v.kind; m.ringFrames = v.ring_frames; m.headFrames = v.head; m.channels = v.channels;
+    m.rateHz = proc->stored_sample_rate(); m.lowFi = v.low_fi; m.writing = v.writing;
+    m.hasMarker = v.has_marker; m.hasBand = v.has_band; m.hasSlice = v.has_slice;
+    m.markerBack = v.marker_back; m.bandFar = v.band_far; m.bandLen = v.band_len; m.sliceFar = v.slice_far; m.sliceLen = v.slice_len;
+
+    const void* d[2] = { nullptr, nullptr };
+    size_t bytes[2] = { 0, 0 };
+    bool ok = v.hidden == clouds::VIEW_SHOWN && v.ring_frames > 0;
+    for (int ch = 0; ch < 2 && ok; ++ch)
+    {
+        void* data = nullptr; size_t n = 0;
+        if (proc->sample_region (ch, &data, &n)) { d[ch] = data; bytes[ch] = n; }
+        else if (ch == 0) ok = false;
+    }
+    if (! ok) { scanRing = -1; picture.publish (m); return; }
+
+    const int64_t ring = v.ring_frames;
+    const size_t bytesPerFrame = v.low_fi ? 1u : 2u;
+    for (int ch = 0; ch < 2; ++ch)
+        if (d[ch] != nullptr && (size_t) ring * bytesPerFrame > bytes[ch]) { scanRing = -1; m.hidden = 1; picture.publish (m); return; }   // (never expected)
+
+    // A new buffer (rebuilt, different length or format, moved): start the sweep again from silence.
+    const int32_t gen = proc->buffers_generation();
+    if (gen != scanGeneration || (int) ring != scanRing || v.low_fi != scanLowFi || d[0] != scanPtr)
+    {
+        scanGeneration = gen; scanRing = (int) ring; scanLowFi = v.low_fi; scanPtr = d[0]; scanCursor = 0; scanSinceHeld = 0;
+        picture.clearPeaks();
+    }
+
+    constexpr int kBins = WaveformPicture::kBins;
+    // A recording that is held still (Freeze, a playing layer) is swept once more after it stopped, then only re-checked now and then
+    // (a layer being loaded changes the memory without the head moving).
+    if (v.writing) scanSinceHeld = 0;
+    else if (scanSinceHeld >= kBins && (++scanIdleTick & 31) != 0) { picture.publish (m); return; }
+    const int perBlock = (int) std::clamp<int64_t> (2048LL * kBins / ring, 1, kBins);   // about 2048 frames re-read per block
+    for (int k = 0; k < perBlock; ++k)
+    {
+        const int bin = scanCursor;
+        scanCursor = (scanCursor + 1) % kBins;
+        const int64_t f0 = ring * bin / kBins, f1 = ring * (bin + 1) / kBins;
+        int peak = 0;
+        for (int ch = 0; ch < 2; ++ch)
+        {
+            if (d[ch] == nullptr) continue;
+            if (v.low_fi)
+            {
+                const uint8_t* s = static_cast<const uint8_t*> (d[ch]);
+                for (int64_t f = f0; f < f1; ++f) { const int a = std::abs ((int) clouds::MuLaw2Lin (s[f])); if (a > peak) peak = a; }
+            }
+            else
+            {
+                const int16_t* s = static_cast<const int16_t*> (d[ch]);
+                for (int64_t f = f0; f < f1; ++f) { const int a = std::abs ((int) s[f]); if (a > peak) peak = a; }
+            }
+        }
+        picture.setPeak (bin, (uint16_t) std::min (peak, 32767));
+    }
+    if (! v.writing) scanSinceHeld += perBlock;
+    picture.publish (m);
 }
 
 void CloudsEngine::process (const float* inL, const float* inR, float* outL, float* outR, int n, const Params& p)
